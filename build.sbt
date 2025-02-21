@@ -8,10 +8,11 @@ val chiselVersion = "6.6.0"
 
 lazy val root = (project in file("."))
   .settings(
-    name := "%NAME%",
+    name := "SHA256GENERATOR",
     libraryDependencies ++= Seq(
       "org.chipsalliance" %% "chisel" % chiselVersion,
-      "org.scalatest" %% "scalatest" % "3.2.16" % "test",
+      "org.scalatest" %% "scalatest" % "3.2.16" % Test,
+      "edu.berkeley.cs" %% "chiseltest" % "6.0.0" % Test,
     ),
     scalacOptions ++= Seq(
       "-language:reflectiveCalls",
@@ -22,3 +23,4 @@ lazy val root = (project in file("."))
     ),
     addCompilerPlugin("org.chipsalliance" % "chisel-plugin" % chiselVersion cross CrossVersion.full),
   )
+
