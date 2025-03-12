@@ -1,119 +1,95 @@
 import chisel3._
 import chisel3.util._
-
 class inputManager extends Module {
+
   val io = IO(new Bundle {
-    // Input interface
-    val in = Input(UInt(32.W))  // 8 bytes as a word
-    val in_valid = Input(Bool())
-    val in_last = Input(Bool())  // Indicates it is the last word of whole message
-    val in_last_valid_bit_index = Input(UInt(5.W)) // byte as minimum component
-    val in_ready = Output(Bool())
+    val in = Flipped(DecoupledIO(Vec(64, UInt(8.W))))
+    val last_byte_index = Input(UInt(6.W)) // range 0-63
 
-    // Output interface
-    val output = Output(UInt(512.W))
-    val output_valid = Output(Bool())
-    val output_ready = Input(Bool())
-
-    val stateout = Output(UInt(2.W))
+    val out = DecoupledIO(Vec(64, UInt(8.W)))
+    val out_last = Output(Bool())
   })
 
-  // States
-  private val sIdle :: sAccumulate :: sPadding :: sOutput :: Nil = Enum(4)
-  private val state = RegInit(sIdle)
-  io.stateout := state
-  // Buffer to accumulate message words
-  private val buffer = Reg(Vec(16, UInt(32.W))) // 16 * 32 = 512 bits
-  private val wordCount = RegInit(0.U(4.W))  // 2 ^4 = 16 words
+  val sReady :: sTransmit :: sPadding :: sPaddingLengthNext :: sPadding1andLengthNext :: Nil = Enum(5)
+  val state = RegInit(sReady)
 
-  private val totalBitLength = RegInit(0.U(64.W))
-  private val currentBitLength = totalBitLength % 512.U
-  private val paddingState = RegInit(0.U(2.W)) // 01 for only length, 10 for both 1 and length, 11 for ok.
-  // Default values
-  io.in_ready := false.B
-  io.output := buffer.asUInt
-  io.output_valid := false.B
-  switch(state) {
-    is(sIdle) {
-      io.in_ready := true.B
-      when(!io.in_last)
-      {
-        for (i <- 0 until 16) {
-          buffer(i) := 0.U
-        }
-      }
+  io.in.ready := false.B
+  io.out.valid := false.B
+  io.out_last := false.B
 
-      switch(paddingState){ // handle special situation for padding
-        is(1.U){
-          buffer(14) := totalBitLength(63, 32)
-          buffer(15) := totalBitLength(31, 0)
-          state := sOutput
-          paddingState := 0.U
-        }
-        is(2.U){
-          buffer(0) := (1.U << 31)
-          buffer(14) := totalBitLength(63, 32)
-          buffer(15) := totalBitLength(31, 0)
-          state := sOutput
-          paddingState := 0.U
-        }
-      }
+  val byteCounter = RegInit(0.U(32.W))
+  val theLastBlock = Reg(Vec(64, UInt(8.W)))
+  val length = byteCounter*8.U
 
-      when(io.in_valid) {
-        buffer(0) := io.in
-        wordCount := 1.U
-        totalBitLength := totalBitLength + 32.U
-        state := sAccumulate
+  theLastBlock := io.in.bits
+  io.out.bits := theLastBlock
+
+  switch(state){
+    is(sReady){
+      io.in.ready := true.B
+      when(io.in.valid){
+        state := sTransmit
       }
     }
 
-    is(sAccumulate) {
-      io.in_ready := true.B
-
-      when(io.in_valid) {
-        buffer(wordCount) := io.in
-        wordCount := wordCount + 1.U
-        totalBitLength := totalBitLength + 32.U
-        when(io.in_last) {
-          totalBitLength := totalBitLength - io.in_last_valid_bit_index
-          state := sPadding
-        }.elsewhen(wordCount === 15.U) { // end of current block
-          state := sOutput
+    is(sTransmit){
+      when(io.last_byte_index === 0.U){ // not the last block
+        when (io.out.ready) {
+          io.out.valid := true.B
         }
+        byteCounter := byteCounter + 64.U
+      }.elsewhen(io.last_byte_index > 54.U && io.last_byte_index <= 62.U){
+          byteCounter := byteCounter + io.last_byte_index +1.U
+          theLastBlock(io.last_byte_index+1.U):= 0x80.U
+        when (io.out.ready) {
+          io.out.valid := true.B
+        }
+        state := sPaddingLengthNext
+        }.elsewhen(io.last_byte_index === 63.U){
+          byteCounter := byteCounter + io.last_byte_index +1.U
+        when (io.out.ready) {
+          io.out.valid := true.B
+        }
+        state := sPadding1andLengthNext
+        }.otherwise{
+        state := sPadding
+        byteCounter := byteCounter + io.last_byte_index +1.U
       }
     }
 
-    is(sPadding) {
-      //Need 2 words to pad
-      when(currentBitLength <= 440.U) { // can finish at current block
-        val mask = 1.U(32.W) << (31.U - currentBitLength % 32.U)
-        buffer(wordCount - 1.U) := buffer(wordCount - 1.U) | mask.asUInt // pad 1
-        buffer(14) := totalBitLength(63, 32)
-        buffer(15) := totalBitLength(31, 0)
-        state := sOutput
-        paddingState := 3.U
-      }.elsewhen(currentBitLength < 512.U){ // the "1" can be padded at current block
-        val mask = 1.U(32.W) << (31.U - currentBitLength % 32.U)
-        buffer(wordCount - 1.U) := buffer(wordCount - 1.U) | mask.asUInt
-        paddingState := 1.U
-      }.otherwise {
-        // Need another block for padding 1 and length
-        paddingState := 2.U
-        state := sOutput
-      }
-
+    is(sPadding){
+       // the last block has enough space
+        theLastBlock(io.last_byte_index+1.U):= 0x80.U
+        theLastBlock(63) := length(7, 0)
+        theLastBlock(62) := length(15, 8)
+        theLastBlock(61) := length(23, 16)
+        theLastBlock(60) := length(31, 17)
+        io.out.valid := true.B
+        io.out_last := true.B
+        when(io.out.ready){state := sReady}
     }
 
-    is(sOutput) {
-      io.output_valid := true.B
-      when(io.output_ready) {
-        wordCount := 0.U
-        state := sIdle
-        io.output_valid := false.B
-      }
+    is(sPaddingLengthNext){
+      theLastBlock(63) := length(7, 0)
+      theLastBlock(62) := length(15, 8)
+      theLastBlock(61) := length(23, 16)
+      theLastBlock(60) := length(31, 17)
+      io.out.valid := true.B
+      io.out_last := true.B
+      when(io.out.ready){state := sReady}
     }
+
+    is(sPadding1andLengthNext){
+      theLastBlock(0) := 0x80.U
+      theLastBlock(63) := length(7, 0)
+      theLastBlock(62) := length(15, 8)
+      theLastBlock(61) := length(23, 16)
+      theLastBlock(60) := length(31, 17)
+      io.out.valid := true.B
+      io.out_last := true.B
+      when(io.out.ready){state := sReady}
+    }
+
   }
 
 }
-
-
