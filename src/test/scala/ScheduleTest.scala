@@ -3,11 +3,11 @@ import chisel3.util._
 import chiseltest._
 import org.scalatest.flatspec.AnyFlatSpec
 
-class WcalculatorTest extends AnyFlatSpec with ChiselScalatestTester {
-  behavior of "Wcalculator"
+class ScheduleTest extends AnyFlatSpec with ChiselScalatestTester {
+  behavior of "Scheduler"
 
   it should "calculate value W " in {
-    test(new Wcalculator) { dut =>
+    test(new Schedule) { dut =>
       var clock = 0
       dut.clock.setTimeout(50)
       dut.io.in.bits(0).poke(0xff800000L.U) //Long!!
@@ -39,4 +39,6 @@ class WcalculatorTest extends AnyFlatSpec with ChiselScalatestTester {
 
     }
   }
+
+
 }

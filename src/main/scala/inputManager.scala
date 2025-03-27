@@ -4,7 +4,7 @@ class inputManager extends Module {
 
   val io = IO(new Bundle {
     val in = Flipped(DecoupledIO(Vec(64, UInt(8.W))))
-    val last_byte_index = Input(UInt(6.W)) // range 0-63
+    val last_byte_index = Input(UInt(7.W)) // range 0-64
 
     val out = DecoupledIO(Vec(64, UInt(8.W)))
     val out_last = Output(Bool())
@@ -19,21 +19,23 @@ class inputManager extends Module {
 
   val byteCounter = RegInit(0.U(32.W))
   val theLastBlock = Reg(Vec(64, UInt(8.W)))
-  val length = byteCounter*8.U
 
-  theLastBlock := io.in.bits
+// if you want to set width of "length", match Bytecounter's
+  val length = byteCounter*8.U
   io.out.bits := theLastBlock
 
   switch(state){
+
     is(sReady){
       io.in.ready := true.B
       when(io.in.valid){
+        theLastBlock := io.in.bits
         state := sTransmit
       }
     }
 
     is(sTransmit){
-      when(io.last_byte_index === 0.U){ // not the last block
+      when(io.last_byte_index >= 64.U){ // not the last block
         when (io.out.ready) {
           io.out.valid := true.B
         }
@@ -51,7 +53,7 @@ class inputManager extends Module {
           io.out.valid := true.B
         }
         state := sPadding1andLengthNext
-        }.otherwise{
+        }.otherwise{ // general situation
         state := sPadding
         byteCounter := byteCounter + io.last_byte_index +1.U
       }
@@ -88,8 +90,10 @@ class inputManager extends Module {
       io.out.valid := true.B
       io.out_last := true.B
       when(io.out.ready){state := sReady}
+
     }
 
   }
-
+//  printf("%x %x %x", theLastBlock(0), theLastBlock(1),theLastBlock(63))
+//  printf("%d %b\n", byteCounter, length)
 }

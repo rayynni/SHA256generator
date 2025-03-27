@@ -9,7 +9,6 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
   it should "handle short message" in {
     test(new inputManager) { dut =>
 
-      val messageBlock = Vec(64, UInt(8.W))
       dut.io.in.bits(0).poke(0xff.U)
       dut.io.in.bits(1).poke(0xff.U)
       for(i<-2 to 63){
@@ -22,12 +21,12 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
 
       while(!dut.io.out.valid.peek().litToBoolean){
         dut.clock.step(1)
-        println(s"Valid: ${dut.io.out.valid.peek().litToBoolean}")
-        println(s"index: ${dut.io.last_byte_index.peek()}")
-        println(s"Output[0]: ${dut.io.out.bits(0).peek()}")
-        println(s"Output[1]: ${dut.io.out.bits(1).peek()}")
-        println(s"Output[2]: ${dut.io.out.bits(2).peek()}")
-        println(s"Output[63]: ${dut.io.out.bits(63).peek()}")
+//        println(s"Valid: ${dut.io.out.valid.peek().litToBoolean}")
+//        println(s"index: ${dut.io.last_byte_index.peek()}")
+//        println(s"Output[0]: ${dut.io.out.bits(0).peek()}")
+//        println(s"Output[1]: ${dut.io.out.bits(1).peek()}")
+//        println(s"Output[2]: ${dut.io.out.bits(2).peek()}")
+//        println(s"Output[63]: ${dut.io.out.bits(63).peek()}")
       }
       dut.clock.step(1) // why???
       dut.io.out.bits(2).expect(0x80.U)
@@ -39,7 +38,6 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
   it should "handle more than one block message" in {
     test(new inputManager) { dut =>
 
-      val messageBlock = Vec(64, UInt(8.W))
       dut.io.in.bits(0).poke(0xff.U)
       dut.io.in.bits(1).poke(0x80.U)
       for (i <- 2 until  63) {
@@ -48,8 +46,8 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
 
       dut.io.in.valid.poke(true.B)
       dut.io.out.ready.poke(true.B)
-
-      step(1)
+      dut.io.last_byte_index.poke(64.U)
+      dut.clock.step(1)
       dut.io.in.valid.poke(false.B)
 
       while (!dut.io.out.valid.peek().litToBoolean) {
@@ -79,10 +77,10 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
         println(s"Output[63]: ${dut.io.out.bits(63).peek()}")
       }
       dut.clock.step(1)
-
       dut.io.out.bits(3).expect(0x80.U)
       dut.io.out.bits(62).expect(0x02.U)
       dut.io.out.bits(63).expect(0x18.U)
+
 
     }
   }
@@ -123,4 +121,25 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
     }
   }
 
+  it should "pass complete test" in {
+    test(new inputManager){dut=>
+      dut.io.in.bits(0).poke(0xff.U)
+
+      for(i<-1 to 63){
+        dut.io.in.bits(i).poke(0.U)
+      }
+
+      dut.io.in.valid.poke(true.B)
+      dut.io.out.ready.poke(true.B)
+      dut.io.last_byte_index.poke(0.U)
+
+      while(!dut.io.out.valid.peek().litToBoolean){
+        dut.clock.step()
+      }
+      dut.io.in.valid.poke(false.B)
+
+      dut.clock.step(3)
+//      println(cf"${dut.io.out.bits(1).peek()} ${dut.io.out.bits(63).peek().litValue}%x")
+    }
+  }
 }

@@ -1,7 +1,7 @@
 import chisel3._
 import chisel3.util._
 
-class Wcalculator extends Module { // calculate the current value of W
+class Schedule extends Module { // calculate the current value of W
   val io = IO(new Bundle {
     val in = Flipped(DecoupledIO(Vec(16, UInt(32.W))))
 
@@ -18,14 +18,18 @@ class Wcalculator extends Module { // calculate the current value of W
   io.in.ready := false.B
   io.out.valid := false.B
   io.out.bits := buffer
-
+  printf("state:%d   ", state)
+  printf("in: %x %x", io.in.bits(0), io.in.bits(15))
+  printf("/buffer: %x %x\n", buffer(0), buffer(15))
   switch(state){
     is(sReceiving){
       io.in.ready := true.B
       for(i<-0 to 15){
         buffer(i):=io.in.bits(i)
       }
+
       when(io.in.valid) {
+
         state := sCalculating
         index := 16.U
       }
@@ -34,7 +38,8 @@ class Wcalculator extends Module { // calculate the current value of W
     is(sCalculating){
       when(index < 63.U)
       {
-        index := index+2.U
+
+        index := index+2.U // twice faster
         buffer(index) := buffer(index - 16.U) + sigma0(buffer(index - 15.U)) + buffer(index - 7.U) + sigma1(buffer(index - 2.U))
         buffer(index+1.U) := buffer(index - 15.U) + sigma0(buffer(index - 14.U)) + buffer(index - 6.U) + sigma1(buffer(index - 1.U))
       }.elsewhen(io.out.ready){
