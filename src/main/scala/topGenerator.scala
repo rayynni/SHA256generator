@@ -25,7 +25,7 @@ class topGenerator extends Module {
   Padder.io.in.bits := io.in.bits
   Scheduler.io.out.ready := false.B
   Scheduler.io.in.valid := false.B
-  Scheduler.io.in.bits := byteToWord(Padder.io.out.bits)
+  Scheduler.io.in.bits := byteToWord(Padder.io.out.bits) // no delay
   Compresser.io.out.ready := false.B
   Compresser.io.W.valid := false.B
   Compresser.io.W.bits := Scheduler.io.out.bits

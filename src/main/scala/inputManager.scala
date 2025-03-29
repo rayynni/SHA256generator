@@ -10,7 +10,7 @@ class inputManager extends Module {
     val out_last = Output(Bool())
   })
 
-  val sReady :: sTransmit :: sPadding :: sPaddingLengthNext :: sPadding1andLengthNext :: Nil = Enum(5)
+  val sReady :: sTransmit :: sPadding :: sPaddingLengthNext :: sPadding1andLengthNext :: sStateDelay :: Nil = Enum(6)
   val state = RegInit(sReady)
 
   io.in.ready := false.B
@@ -23,6 +23,8 @@ class inputManager extends Module {
 // if you want to set width of "length", match Bytecounter's
   val length = byteCounter*8.U
   io.out.bits := theLastBlock
+  printf("Padder state: %d out.valid: %d", state, io.out.valid.asUInt)
+  printf(" out: %x\n", io.out.bits(1))
 
   switch(state){
 
@@ -39,24 +41,25 @@ class inputManager extends Module {
         when (io.out.ready) {
           io.out.valid := true.B
         }
-        byteCounter := byteCounter + 64.U
-      }.elsewhen(io.last_byte_index > 54.U && io.last_byte_index <= 62.U){
+          byteCounter := byteCounter + 64.U
+        }.elsewhen(io.last_byte_index > 54.U && io.last_byte_index <= 62.U){
           byteCounter := byteCounter + io.last_byte_index +1.U
           theLastBlock(io.last_byte_index+1.U):= 0x80.U
-        when (io.out.ready) {
-          io.out.valid := true.B
-        }
-        state := sPaddingLengthNext
+          when (io.out.ready) {
+            io.out.valid := true.B
+          }
+          state := sPaddingLengthNext
         }.elsewhen(io.last_byte_index === 63.U){
           byteCounter := byteCounter + io.last_byte_index +1.U
-        when (io.out.ready) {
-          io.out.valid := true.B
-        }
-        state := sPadding1andLengthNext
+          when (io.out.ready) {
+            io.out.valid := true.B
+            // this is okay because valid update of output has been done last cycle
+          }
+          state := sPadding1andLengthNext
         }.otherwise{ // general situation
-        state := sPadding
-        byteCounter := byteCounter + io.last_byte_index +1.U
-      }
+          state := sPadding
+          byteCounter := byteCounter + io.last_byte_index +1.U
+        }
     }
 
     is(sPadding){
@@ -66,9 +69,8 @@ class inputManager extends Module {
         theLastBlock(62) := length(15, 8)
         theLastBlock(61) := length(23, 16)
         theLastBlock(60) := length(31, 17)
-        io.out.valid := true.B
-        io.out_last := true.B
-        when(io.out.ready){state := sReady}
+        //not synchronized, advance one cycle?
+        state := sStateDelay
     }
 
     is(sPaddingLengthNext){
@@ -76,9 +78,7 @@ class inputManager extends Module {
       theLastBlock(62) := length(15, 8)
       theLastBlock(61) := length(23, 16)
       theLastBlock(60) := length(31, 17)
-      io.out.valid := true.B
-      io.out_last := true.B
-      when(io.out.ready){state := sReady}
+      state := sStateDelay
     }
 
     is(sPadding1andLengthNext){
@@ -87,10 +87,15 @@ class inputManager extends Module {
       theLastBlock(62) := length(15, 8)
       theLastBlock(61) := length(23, 16)
       theLastBlock(60) := length(31, 17)
-      io.out.valid := true.B
-      io.out_last := true.B
-      when(io.out.ready){state := sReady}
+      state := sStateDelay
 
+    }
+
+    is(sStateDelay){
+      when(io.out.ready){
+        io.out.valid := true.B
+        state := sReady
+      }
     }
 
   }
