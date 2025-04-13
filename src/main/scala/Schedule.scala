@@ -19,9 +19,9 @@ class Schedule extends Module { // calculate the current value of W
   io.in.ready := false.B
   io.out.valid := false.B
   io.out.bits := buffer
-  printf(" Scheduler state: %d  in.valid:%d ", state, io.in.valid.asUInt)
-  printf("in: %x %x", io.in.bits(0), io.in.bits(15))
-  printf("/buffer: %x %x", buffer(0), buffer(15))
+//  printf(" Scheduler state: %d  in.valid:%d ", state, io.in.valid.asUInt)
+//  printf("in: %x %x", io.in.bits(0), io.in.bits(15))
+//  printf("/buffer: %x %x", buffer(0), buffer(15))
   switch(state){
     is(sReceiving){
       io.in.ready := true.B

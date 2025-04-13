@@ -1,29 +1,34 @@
-
 import chisel3._
 import chisel3.util._
 
 class topGenerator extends Module {
   val io = IO(new Bundle {
-    val in = Flipped(DecoupledIO(Vec(64, UInt(8.W)))) //to work for any length. because we cannot determine the input bit width
-    val last_byte_index = Input(UInt(7.W))//should >= 64 if not last block
+    val in = Flipped(DecoupledIO(UInt(8.W)))//to work for any length. because we cannot determine the input bit width
+    val last = Input(Bool())//indicate last byte if last block, should >= 64 if not last block
     val out = DecoupledIO(UInt(256.W))
   })
-  val Padder = Module(new inputManager())
+
+  val Padder = Module(new Pad())
   val Scheduler = Module(new Schedule())
   val Compresser = Module(new Compression())
 
-  val sIdle :: sPad :: sSchedule :: sCompress :: Nil = Enum(4)
+  val sIdle :: sFIFO :: sPad :: sSchedule :: sCompress :: Nil = Enum(5)
   val state = RegInit(sIdle)
+
+  val buffer = Reg(Vec(64, UInt(8.W)))
+  val indexR = RegInit(0.U(7.W))
+  val byte = RegNext(io.in.bits)
+  val isLast = RegNext(io.last) //synchronize byte delay
 
   io.in.ready := false.B
   io.out.valid := false.B
   io.out.bits := Compresser.io.out.bits
-  Padder.io.last_byte_index := io.last_byte_index
+  Padder.io.last_byte_index := indexR
 
 
   Padder.io.out.ready := false.B
   Padder.io.in.valid := false.B
-  Padder.io.in.bits := io.in.bits
+  Padder.io.in.bits := buffer
   Scheduler.io.out.ready := false.B
   Scheduler.io.in.valid := false.B
   Scheduler.io.in.bits := byteToWord(Padder.io.out.bits) // no delay
@@ -37,15 +42,35 @@ class topGenerator extends Module {
   switch(state){
     is(sIdle){
       //it is almost meaningless to let each module process simultaneously.
+      for(i<-0 to 63){
+        buffer(i) := 0.U
+      }
+      indexR := 0.U
       io.in.ready := true.B
       Compresser.io.reset := true.B
-        when(io.in.valid&&Padder.io.in.ready){
-        Padder.io.in.valid := true.B
-        state := sPad
+      when(io.in.valid){
+        state := sFIFO
+        }
+
       }
+
+    is(sFIFO){
+      when(isLast){
+        buffer(indexR) := byte
+        state := sPad
+      }.elsewhen(indexR === 63.U){
+        buffer(indexR) := byte
+        indexR := indexR + 1.U
+        state := sPad
+      }.otherwise{
+        buffer(indexR) := byte
+        indexR := indexR + 1.U
+      }
+
     }
 
     is(sPad){
+      Padder.io.in.valid := true.B
       Padder.io.out.ready := true.B
       when(Padder.io.out.valid&&Scheduler.io.in.ready){
         Scheduler.io.in.valid := true.B

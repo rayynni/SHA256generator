@@ -1,4 +1,3 @@
-
 import chisel3._
 import chisel3.util._
 import chiseltest._
@@ -9,21 +8,25 @@ class topGeneratorTest extends AnyFlatSpec with ChiselScalatestTester{
 
   it should "work well" in {
     test(new topGenerator){dut=>
-
+      // Set initial values
       dut.io.in.valid.poke(true.B)
       dut.io.out.ready.poke(true.B)
-      dut.io.in.bits(0).poke(0xff.U)
-      for (i <- 1 to  63) {
-        dut.io.in.bits(i).poke(0.U)
-      }
-      dut.io.last_byte_index.poke(0)
-      dut.clock.step(3)
+      dut.io.in.bits.poke(0xff.U)
+      dut.io.last.poke(true.B)
+
+      dut.clock.step(1)
+
+      dut.clock.step(1)
+
+      dut.io.in.valid.poke(false.B)
+      
+      // Wait for valid output
       while(!dut.io.out.valid.peek().litToBoolean){
         dut.clock.step()
       }
 
-      println(cf"${dut.io.out.valid.peek().litToBoolean} ${dut.io.out.bits.peek().litValue}%x")
-      dut.clock.step()
+      println(cf"Output value: ${dut.io.out.bits.peek().litValue}%x")
+
     }
   }
 }

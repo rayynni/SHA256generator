@@ -1,14 +1,14 @@
 
 import chisel3._
 import chisel3.util._
-class inputManager extends Module {
+class Pad extends Module {
 
   val io = IO(new Bundle {
     val in = Flipped(DecoupledIO(Vec(64, UInt(8.W))))
     val last_byte_index = Input(UInt(7.W)) // range 0-64
 
     val out = DecoupledIO(Vec(64, UInt(8.W)))
-    val out_last = Output(Bool())
+
   })
 
   val sReady :: sTransmit :: sPadding :: sPaddingLengthNext :: sPadding1andLengthNext :: sStateDelay :: Nil = Enum(6)
@@ -16,7 +16,7 @@ class inputManager extends Module {
 
   io.in.ready := false.B
   io.out.valid := false.B
-  io.out_last := false.B
+
 
   val byteCounter = RegInit(0.U(32.W))
   val theLastBlock = Reg(Vec(64, UInt(8.W)))

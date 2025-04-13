@@ -3,11 +3,11 @@ import chiseltest._
 import org.scalatest.flatspec.AnyFlatSpec
 
 
-class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
-  behavior of "inputManager"
+class padTest extends AnyFlatSpec with ChiselScalatestTester {
+  behavior of "Pad"
 
   it should "handle short message" in {
-    test(new inputManager) { dut =>
+    test(new Pad) { dut =>
 
       dut.io.in.bits(0).poke(0xff.U)
       dut.io.in.bits(1).poke(0xff.U)
@@ -36,7 +36,7 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
   }
 
   it should "handle more than one block message" in {
-    test(new inputManager) { dut =>
+    test(new Pad) { dut =>
 
       dut.io.in.bits(0).poke(0xff.U)
       dut.io.in.bits(1).poke(0x80.U)
@@ -86,7 +86,7 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
   }
 
   it should "handle edge situation" in {
-    test(new inputManager) { dut =>
+    test(new Pad) { dut =>
 
       val messageBlock = Vec(64, UInt(8.W))
       dut.io.in.bits(0).poke(0xff.U)
@@ -122,7 +122,7 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
   }
 
   it should "pass complete test" in {
-    test(new inputManager){dut=>
+    test(new Pad){ dut=>
       dut.io.in.bits(0).poke(0xff.U)
 
       for(i<-1 to 63){
@@ -139,7 +139,7 @@ class inputManagerTest extends AnyFlatSpec with ChiselScalatestTester {
       dut.io.in.valid.poke(false.B)
 
       dut.clock.step(3)
-//      println(cf"${dut.io.out.bits(1).peek()} ${dut.io.out.bits(63).peek().litValue}%x")
+      println(cf"${dut.io.out.bits(0).peek()} ${dut.io.out.bits(63).peek().litValue}%x")
     }
   }
 }
