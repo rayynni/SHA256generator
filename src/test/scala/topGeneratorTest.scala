@@ -29,4 +29,32 @@ class topGeneratorTest extends AnyFlatSpec with ChiselScalatestTester{
 
     }
   }
+
+  it should "handle edge situation" in {
+    test(new topGenerator) {dut =>
+
+      dut.io.in.bits.poke(0xff.U)
+      dut.io.in.valid.poke(true.B)
+      dut.io.out.ready.poke(true.B)
+      while(!dut.io.in.ready.peek().litToBoolean){
+        dut.clock.step()
+      }
+
+      var count = 1
+      while(count<=58){
+        count = count + 1
+        dut.clock.step()
+      }
+      dut.io.last.poke(true.B)
+      dut.clock.step()
+      dut.io.in.valid.poke(false.B)
+      while(!dut.io.out.valid.peek().litToBoolean){
+
+        dut.clock.step()
+      }
+
+      println(cf"${dut.io.out.bits.peek().litValue}%x")
+
+    }
+  }
 }

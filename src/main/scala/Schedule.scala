@@ -37,7 +37,6 @@ class Schedule extends Module { // calculate the current value of W
     is(sCalculating){
       when(index < 63.U)
       {
-
         index := index+2.U // twice faster
         buffer(index) := buffer(index - 16.U) + sigma0(buffer(index - 15.U)) + buffer(index - 7.U) + sigma1(buffer(index - 2.U))
         buffer(index+1.U) := buffer(index - 15.U) + sigma0(buffer(index - 14.U)) + buffer(index - 6.U) + sigma1(buffer(index - 1.U))
